@@ -16,20 +16,47 @@ const MQTT_TOPIC_CONTROL = "smartdoor/control";
 const MQTT_TOPIC_VIBRATION = "home/bed/vibration";
 const MQTT_TOPIC_LED = "home/door/led";
 const MQTT_TOPIC_ARDUINO_STATUS = "home/arduino/status"; 
+const FRONTEND_URL = process.env.CLIENT_URL || "http://localhost:5174";
 
 const PORT = process.env.PORT || 5001;
 
 // ====== INITIALIZE ======
 const app = express();
-app.use(cors());
 app.use(express.json());
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // allow requests with no origin (like curl, or some mobile clients)
+      if (!origin) return callback(null, true);
+
+      // allow local dev and the configured frontend
+      const allowed = [FRONTEND_URL, "http://localhost:5174"];
+      if (allowed.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS policy: origin not allowed"), false);
+      }
+    },
+  })
+);
+
 
 // Connect to database first
 connectDB();
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "http://localhost:5174", methods: ["GET", "POST"] },
+  cors: {
+    origin: (origin, callback) => {
+      // same origin logic for socket.io
+      if (!origin) return callback(null, true);
+      const allowed = [FRONTEND_URL, "http://localhost:5174"];
+      if (allowed.indexOf(origin) !== -1) callback(null, true);
+      else callback(new Error("Socket.IO CORS blocked"), false);
+    },
+    methods: ["GET", "POST"],
+  },
 });
 
 // ====== MQTT SETUP ======
@@ -125,3 +152,4 @@ app.get("/api/alerts", async (req, res) => {
 
 // ====== START SERVER ======
 server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+
